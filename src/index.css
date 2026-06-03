@@ -1,1 +1,75 @@
 @import "tailwindcss";
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-green-600 bg-white px-4 py-2 text-sm font-medium text-green-700 shadow-sm transition-colors hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+  }
+
+  .card {
+    @apply rounded-xl bg-white p-6 shadow-md border border-gray-100;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+
+  .form-input {
+    @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500;
+  }
+
+  .form-error {
+    @apply mt-1 text-sm text-red-600;
+  }
+
+  .table-container {
+    @apply overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm;
+  }
+
+  .data-table {
+    @apply w-full text-sm text-left;
+  }
+
+  .data-table thead {
+    @apply bg-green-50 text-green-900 uppercase text-xs;
+  }
+
+  .data-table th {
+    @apply px-4 py-3 font-semibold;
+  }
+
+  .data-table td {
+    @apply px-4 py-3 border-t border-gray-100;
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    @apply bg-gray-50;
+  }
+
+  .data-table tbody tr:hover {
+    @apply bg-green-50/50;
+  }
+
+  .stat-card {
+    @apply rounded-xl bg-white p-5 shadow-md border border-gray-100;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-gray-900 mb-6;
+  }
+
+  .alert-error {
+    @apply rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700;
+  }
+
+  .alert-success {
+    @apply rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700;
+  }
+}
