@@ -70,21 +70,68 @@ export function groupExpensesBySpecies(expenses, animals, allocations = []) {
   return groups
 }
 
-export function calcAnimalFinancials(animal, expenses, incomeEntries, allocations = []) {
-  const direct = expenses
+export function calcAnimalFinancials(
+  animal,
+  expenses,
+  incomeEntries,
+  allocations = [],
+  incomeAllocations = [],
+  startDate = '',
+  endDate = ''
+) {
+  // Direct expenses (where animal_id is set)
+  const directExpenses = expenses
     .filter((e) => e.animal_id === animal.id)
     .reduce((s, e) => s + Number(e.amount || 0), 0)
-  const allocated = allocations
-    .filter((a) => a.animal_id === animal.id)
-    .reduce((s, a) => s + Number(a.amount || 0), 0)
-  const animalExpenses = direct + allocated
 
-  const animalIncome = incomeEntries
+  // Allocated expenses (from split expenses)
+  const allocatedExpenses = allocations
+    .filter((a) => {
+      if (a.animal_id !== animal.id) return false
+      
+      // If we have date filters, verify if the parent expense is within the range
+      if (startDate || endDate) {
+        const parentExpense = expenses.find((e) => e.id === a.expense_id)
+        if (parentExpense) {
+          if (startDate && parentExpense.date < startDate) return false
+          if (endDate && parentExpense.date > endDate) return false
+        }
+      }
+      return true
+    })
+    .reduce((s, a) => s + Number(a.amount || 0), 0)
+  
+  const animalExpenses = directExpenses + allocatedExpenses
+
+  // Direct income (where animal_id is set)
+  const directIncome = incomeEntries
     .filter((i) => i.animal_id === animal.id)
     .reduce((s, i) => s + Number(i.amount || 0), 0)
 
-  const purchaseCost = animal.acquisition_type === 'purchased' ? Number(animal.purchase_price || 0) : 0
-  const salePrice = animal.is_sold ? Number(animal.sale_price || 0) : 0
+  // Allocated income (from dynamic split income)
+  const allocatedIncome = incomeAllocations
+    .filter((a) => {
+      if (a.animal_id !== animal.id) return false
+
+      // If we have date filters, verify if the allocation date is within range
+      if (startDate || endDate) {
+        if (startDate && a.date < startDate) return false
+        if (endDate && a.date > endDate) return false
+      }
+      return true
+    })
+    .reduce((s, a) => s + Number(a.amount || 0), 0)
+
+  const animalIncome = directIncome + allocatedIncome
+
+  const purchaseCost = (animal.acquisition_type === 'purchased' &&
+    (!startDate || animal.acquisition_date >= startDate) &&
+    (!endDate || animal.acquisition_date <= endDate))
+    ? Number(animal.purchase_price || 0) : 0
+  const salePrice = (animal.is_sold &&
+    (!startDate || animal.sale_date >= startDate) &&
+    (!endDate || animal.sale_date <= endDate))
+    ? Number(animal.sale_price || 0) : 0
   const net = animalIncome + salePrice - animalExpenses - purchaseCost
 
   return { animalExpenses, animalIncome, purchaseCost, salePrice, net }

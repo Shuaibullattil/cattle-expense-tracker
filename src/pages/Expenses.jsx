@@ -4,6 +4,8 @@ import { fetchAnimals } from '../api/animals'
 import { deleteExpense, fetchExpenses } from '../api/expenses'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
+import StyledSelect from '../components/StyledSelect'
+import { categoryFilterOptions, FILTER_SCOPE_OPTIONS } from '../constants/selectOptions'
 import { formatCurrency, formatDate, categoryLabel, todayISO } from '../utils/format'
 import { getScopeLabel, getScopeType } from '../utils/scope'
 
@@ -14,8 +16,6 @@ function expenseSplitSummary(expense) {
   return `Split: ${allocs.length} animals @ ${formatCurrency(perHead)} each`
 }
 import { filterByDateRange } from '../utils/aggregations'
-
-const CATEGORIES = ['feed', 'medicine', 'vet', 'labour', 'equipment', 'other']
 
 export default function Expenses() {
   const [expenses, setExpenses] = useState([])
@@ -67,43 +67,56 @@ export default function Expenses() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="page-header">
         <h2 className="page-title mb-0">Expenses</h2>
-        <Link to="/expenses/new" className="btn-primary">Add Expense</Link>
+        <Link to="/expenses/new" className="btn-primary w-full sm:w-auto">Add Expense</Link>
       </div>
 
       {error && <div className="alert-error mb-4">{error}</div>}
 
-      <div className="card mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-          <label className="form-label">From Date</label>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="form-input" max={dateTo || todayISO()} />
-        </div>
-        <div>
-          <label className="form-label">To Date</label>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="form-input" min={dateFrom} max={todayISO()} />
-        </div>
-        <div>
-          <label className="form-label">Category</label>
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="form-input">
-            <option value="">All categories</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{categoryLabel(c)}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Scope</label>
-          <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} className="form-input">
-            <option value="">All scopes</option>
-            <option value="animal">Individual Animal</option>
-            <option value="species">Species</option>
-            <option value="common">Whole Farm</option>
-          </select>
+      <div className="card mb-4">
+        <div className="filter-row">
+          <div className="filter-field">
+            <label className="form-label">From</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="form-input" max={dateTo || todayISO()} />
+          </div>
+          <div className="filter-field">
+            <label className="form-label">To</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="form-input" min={dateFrom} max={todayISO()} />
+          </div>
+          <div className="filter-field">
+            <label className="form-label">Category</label>
+            <StyledSelect value={categoryFilter} onChange={setCategoryFilter} options={categoryFilterOptions()} />
+          </div>
+          <div className="filter-field">
+            <label className="form-label">Scope</label>
+            <StyledSelect value={scopeFilter} onChange={setScopeFilter} options={FILTER_SCOPE_OPTIONS} />
+          </div>
         </div>
       </div>
 
-      <div className="table-container">
+      <div className="md:hidden space-y-3 mb-4">
+        {filtered.length === 0 ? (
+          <p className="text-center text-gray-500 py-6 text-sm">No expenses found.</p>
+        ) : (
+          filtered.map((e) => (
+            <div key={e.id} className="mobile-card">
+              <div className="flex justify-between gap-2">
+                <p className="font-semibold text-red-700">{formatCurrency(e.amount)}</p>
+                <p className="text-xs text-gray-500">{formatDate(e.date)}</p>
+              </div>
+              <p className="text-xs text-gray-600">{categoryLabel(e.category)} · {getScopeLabel(e, animalsMap)}</p>
+              {expenseSplitSummary(e) && <p className="text-xs text-green-700">{expenseSplitSummary(e)}</p>}
+              {e.notes && <p className="text-xs text-gray-500 truncate">{e.notes}</p>}
+              <button type="button" onClick={() => setDeleteId(e.id)} className="btn-danger w-full text-xs !min-h-[40px] mt-1">
+                Delete
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="hidden md:block table-container">
         <table className="data-table">
           <thead>
             <tr>

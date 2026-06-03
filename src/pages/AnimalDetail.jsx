@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fetchAnimalById, markAnimalSold } from '../api/animals'
+import { fetchAnimalById, markAnimalSold, fetchAnimals } from '../api/animals'
 import { fetchExpensesForAnimal } from '../api/expenses'
-import { fetchIncomeForAnimal } from '../api/income'
+import { fetchIncome } from '../api/income'
 import LoadingSpinner from '../components/LoadingSpinner'
 import {
   formatCurrency,
@@ -13,6 +13,7 @@ import {
   incomeTypeLabel,
 } from '../utils/format'
 import { calcAnimalFinancials } from '../utils/aggregations'
+import { buildIncomeAllocations } from '../utils/incomeSplit'
 
 export default function AnimalDetail() {
   const { id } = useParams()
@@ -20,6 +21,7 @@ export default function AnimalDetail() {
   const [animal, setAnimal] = useState(null)
   const [expenses, setExpenses] = useState([])
   const [income, setIncome] = useState([])
+  const [incomeAllocations, setIncomeAllocations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showSaleForm, setShowSaleForm] = useState(false)
@@ -33,16 +35,37 @@ export default function AnimalDetail() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [aRes, eRes, iRes] = await Promise.all([
+      const [aRes, eRes, allIncomeRes, allAnimalsRes] = await Promise.all([
         fetchAnimalById(id),
         fetchExpensesForAnimal(id),
-        fetchIncomeForAnimal(id),
+        fetchIncome(),
+        fetchAnimals(),
       ])
-      if (aRes.error) setError(aRes.error)
-      else {
+      if (aRes.error || allIncomeRes.error || allAnimalsRes.error) {
+        setError(aRes.error || allIncomeRes.error || allAnimalsRes.error)
+      } else {
         setAnimal(aRes.data)
         setExpenses(eRes.data || [])
-        setIncome(iRes.data || [])
+
+        // Build income allocations dynamically
+        const allocs = buildIncomeAllocations(allIncomeRes.data, allAnimalsRes.data)
+        const animalAllocs = allocs.filter((a) => a.animal_id === id)
+        setIncomeAllocations(animalAllocs)
+
+        // Map income entries to show both direct and split/allocated incomes
+        const mappedIncome = animalAllocs.map((a) => {
+          const orig = allIncomeRes.data.find((i) => i.id === a.income_id)
+          return {
+            ...orig,
+            rowKey: a.id,
+            isSplit: a.isSplit,
+            displayAmount: a.amount,
+            splitNote: a.splitNote,
+            totalIncomeAmount: a.totalIncomeAmount,
+          }
+        }).sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+
+        setIncome(mappedIncome)
       }
       setLoading(false)
     }
@@ -79,12 +102,13 @@ export default function AnimalDetail() {
   const directExpenses = expenses.filter((e) => !e.isSplit)
   const splitAllocations = expenses
     .filter((e) => e.isSplit)
-    .map((e) => ({ animal_id: id, amount: e.displayAmount }))
+    .map((e) => ({ id: e.id, expense_id: e.id, animal_id: id, amount: e.displayAmount }))
   const { animalExpenses, animalIncome, purchaseCost, net } = calcAnimalFinancials(
     animal,
     directExpenses,
-    income,
+    income.filter((i) => !i.isSplit),
     splitAllocations,
+    incomeAllocations,
   )
 
   const motherName = animal.mother?.name
@@ -252,12 +276,21 @@ export default function AnimalDetail() {
                 <tr><td colSpan={5} className="text-center py-8 text-gray-500">No income for this animal.</td></tr>
               ) : (
                 income.map((i) => (
-                  <tr key={i.id}>
+                  <tr key={i.rowKey || i.id}>
                     <td>{formatDate(i.date)}</td>
                     <td>{incomeTypeLabel(i.type)}</td>
-                    <td>{formatCurrency(i.amount)}</td>
+                    <td className="font-medium text-green-700">
+                      {formatCurrency(i.displayAmount ?? i.amount)}
+                    </td>
                     <td>{i.quantity ? `${i.quantity} ${i.unit || ''}` : '—'}</td>
-                    <td>{i.notes || '—'}</td>
+                    <td className="text-sm text-gray-600">
+                      {i.isSplit && (
+                        <span className="block text-xs text-green-700 mb-0.5">
+                          {i.splitNote} — total {formatCurrency(i.totalIncomeAmount)}
+                        </span>
+                      )}
+                      {i.notes || (i.isSplit ? '' : '—')}
+                    </td>
                   </tr>
                 ))
               )}

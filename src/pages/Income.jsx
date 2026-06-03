@@ -4,11 +4,11 @@ import { fetchAnimals } from '../api/animals'
 import { deleteIncome, fetchIncome } from '../api/income'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
+import StyledSelect from '../components/StyledSelect'
+import { FILTER_SCOPE_OPTIONS, incomeTypeFilterOptions } from '../constants/selectOptions'
 import { formatCurrency, formatDate, incomeTypeLabel, todayISO } from '../utils/format'
 import { getScopeLabel, getScopeType } from '../utils/scope'
 import { filterByDateRange } from '../utils/aggregations'
-
-const INCOME_TYPES = ['milk_sale', 'manure', 'other']
 
 export default function Income() {
   const [income, setIncome] = useState([])
@@ -60,43 +60,55 @@ export default function Income() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="page-header">
         <h2 className="page-title mb-0">Income</h2>
-        <Link to="/income/new" className="btn-primary">Add Income</Link>
+        <Link to="/income/new" className="btn-primary w-full sm:w-auto">Add Income</Link>
       </div>
 
       {error && <div className="alert-error mb-4">{error}</div>}
 
-      <div className="card mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-          <label className="form-label">From Date</label>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="form-input" />
-        </div>
-        <div>
-          <label className="form-label">To Date</label>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="form-input" max={todayISO()} />
-        </div>
-        <div>
-          <label className="form-label">Type</label>
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="form-input">
-            <option value="">All types</option>
-            {INCOME_TYPES.map((t) => (
-              <option key={t} value={t}>{incomeTypeLabel(t)}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Scope</label>
-          <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value)} className="form-input">
-            <option value="">All scopes</option>
-            <option value="animal">Individual Animal</option>
-            <option value="species">Species</option>
-            <option value="common">Whole Farm</option>
-          </select>
+      <div className="card mb-4">
+        <div className="filter-row">
+          <div className="filter-field">
+            <label className="form-label">From</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="form-input" />
+          </div>
+          <div className="filter-field">
+            <label className="form-label">To</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="form-input" max={todayISO()} />
+          </div>
+          <div className="filter-field">
+            <label className="form-label">Type</label>
+            <StyledSelect value={typeFilter} onChange={setTypeFilter} options={incomeTypeFilterOptions()} />
+          </div>
+          <div className="filter-field">
+            <label className="form-label">Scope</label>
+            <StyledSelect value={scopeFilter} onChange={setScopeFilter} options={FILTER_SCOPE_OPTIONS} />
+          </div>
         </div>
       </div>
 
-      <div className="table-container">
+      <div className="md:hidden space-y-3 mb-4">
+        {filtered.length === 0 ? (
+          <p className="text-center text-gray-500 py-6 text-sm">No income found.</p>
+        ) : (
+          filtered.map((i) => (
+            <div key={i.id} className="mobile-card">
+              <div className="flex justify-between gap-2">
+                <p className="font-semibold text-green-700">{formatCurrency(i.amount)}</p>
+                <p className="text-xs text-gray-500">{formatDate(i.date)}</p>
+              </div>
+              <p className="text-xs text-gray-600">{incomeTypeLabel(i.type)} · {getScopeLabel(i, animalsMap)}</p>
+              {i.quantity && <p className="text-xs text-gray-500">{i.quantity} {i.unit || ''}</p>}
+              <button type="button" onClick={() => setDeleteId(i.id)} className="btn-danger w-full text-xs !min-h-[40px] mt-1">
+                Delete
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="hidden md:block table-container">
         <table className="data-table">
           <thead>
             <tr>

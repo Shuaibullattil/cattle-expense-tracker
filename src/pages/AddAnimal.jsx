@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createAnimal, fetchAnimalById, fetchAnimals, updateAnimal } from '../api/animals'
+import { createAnimal, fetchAnimalById, fetchAnimals, updateAnimal, fetchDistinctSpecies } from '../api/animals'
 import LoadingSpinner from '../components/LoadingSpinner'
+import StyledSelect from '../components/StyledSelect'
+import { animalSelectOptions, SPECIES_ICON_MAP } from '../constants/selectOptions'
+import { HiOutlineGlobeAlt } from 'react-icons/hi2'
+import { GiCow } from 'react-icons/gi'
 
 const SPECIES_SUGGESTIONS = ['Buffalo', 'Cow', 'Goat', 'Sheep']
 
@@ -10,16 +14,18 @@ export default function AddAnimal() {
   const isEdit = Boolean(id)
   const navigate = useNavigate()
 
-  const [loading, setLoading] = useState(isEdit)
+  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [errors, setErrors] = useState({})
   const [mothers, setMothers] = useState([])
+  const [speciesOptions, setSpeciesOptions] = useState([])
 
   const [name, setName] = useState('')
   const [tagNumber, setTagNumber] = useState('')
   const [species, setSpecies] = useState('')
+  const [customSpecies, setCustomSpecies] = useState('')
   const [breed, setBreed] = useState('')
   const [acquisitionType, setAcquisitionType] = useState('purchased')
   const [acquisitionDate, setAcquisitionDate] = useState('')
@@ -28,36 +34,89 @@ export default function AddAnimal() {
   const [motherId, setMotherId] = useState('')
 
   useEffect(() => {
-    fetchAnimals({ activeOnly: true }).then(({ data }) => {
-      if (data) setMothers(data.filter((a) => a.id !== id))
-    })
-  }, [id])
+    async function loadData() {
+      setLoading(true)
+      const [mothersRes, speciesRes, animalRes] = await Promise.all([
+        fetchAnimals({ status: 'active' }),
+        fetchDistinctSpecies(),
+        isEdit ? fetchAnimalById(id) : Promise.resolve({ data: null, error: null }),
+      ])
 
-  useEffect(() => {
-    if (!isEdit) return
-    async function load() {
-      const { data, error: err } = await fetchAnimalById(id)
-      if (err) setError(err)
-      else if (data) {
-        setName(data.name)
-        setTagNumber(data.tag_number || '')
-        setSpecies(data.species)
-        setBreed(data.breed || '')
-        setAcquisitionType(data.acquisition_type)
-        setAcquisitionDate(data.acquisition_date)
-        setPurchasePrice(data.purchase_price?.toString() || '')
-        setPurchasedFrom(data.purchased_from || '')
-        setMotherId(data.mother_id || '')
+      if (mothersRes.data) {
+        setMothers(mothersRes.data.filter((a) => a.id !== id))
       }
+
+      let editSpecies = ''
+      if (isEdit) {
+        if (animalRes.error) {
+          setError(animalRes.error)
+        } else if (animalRes.data) {
+          const a = animalRes.data
+          setName(a.name)
+          setTagNumber(a.tag_number || '')
+          editSpecies = a.species || ''
+          setBreed(a.breed || '')
+          setAcquisitionType(a.acquisition_type)
+          setAcquisitionDate(a.acquisition_date)
+          setPurchasePrice(a.purchase_price?.toString() || '')
+          setPurchasedFrom(a.purchased_from || '')
+          setMotherId(a.mother_id || '')
+        }
+      }
+
+      const dbSpecies = speciesRes.data || []
+      const merged = Array.from(
+        new Set([
+          ...SPECIES_SUGGESTIONS.map((s) => s.toLowerCase()),
+          ...dbSpecies.map((s) => s.toLowerCase()),
+          ...(editSpecies ? [editSpecies.toLowerCase()] : []),
+        ])
+      )
+
+      const opts = merged.map((s) => ({
+        value: s,
+        label: s.charAt(0).toUpperCase() + s.slice(1),
+        color: 'bg-lime-50 text-lime-900 border-lime-200',
+        Icon: SPECIES_ICON_MAP[s] || GiCow,
+      }))
+
+      opts.push({
+        value: '__custom__',
+        label: 'Other / Custom…',
+        color: 'bg-gray-50 text-gray-800 border-gray-200',
+        Icon: HiOutlineGlobeAlt,
+      })
+
+      setSpeciesOptions(opts)
+
+      if (editSpecies) {
+        const lowerEdit = editSpecies.toLowerCase()
+        const isStandardOrDb = SPECIES_SUGGESTIONS.map((s) => s.toLowerCase()).includes(lowerEdit) ||
+                               dbSpecies.map((s) => s.toLowerCase()).includes(lowerEdit)
+        if (isStandardOrDb) {
+          setSpecies(lowerEdit)
+        } else {
+          setSpecies('__custom__')
+          setCustomSpecies(editSpecies)
+        }
+      }
+
       setLoading(false)
     }
-    load()
+
+    loadData()
   }, [id, isEdit])
 
   const validate = () => {
     const e = {}
     if (!name.trim()) e.name = 'Name is required'
-    if (!species.trim()) e.species = 'Species is required'
+    
+    if (species === '__custom__') {
+      if (!customSpecies.trim()) e.species = 'Species name is required'
+    } else if (!species.trim()) {
+      e.species = 'Species is required'
+    }
+
     if (!acquisitionDate) e.acquisitionDate = 'Date is required'
     if (acquisitionType === 'purchased') {
       if (!purchasePrice || Number(purchasePrice) <= 0) e.purchasePrice = 'Purchase price is required'
@@ -73,10 +132,11 @@ export default function AddAnimal() {
     if (!validate()) return
 
     setSubmitting(true)
+    const finalSpecies = species === '__custom__' ? customSpecies.trim().toLowerCase() : species.trim().toLowerCase()
     const payload = {
       name: name.trim(),
       tag_number: tagNumber.trim() || null,
-      species: species.trim().toLowerCase(),
+      species: finalSpecies,
       breed: breed.trim() || null,
       acquisition_type: acquisitionType,
       acquisition_date: acquisitionDate,
@@ -121,19 +181,31 @@ export default function AddAnimal() {
 
         <div>
           <label className="form-label">Species *</label>
-          <input
-            list="species-list"
+          <StyledSelect
             value={species}
-            onChange={(e) => setSpecies(e.target.value)}
-            className="form-input"
+            onChange={(val) => {
+              setSpecies(val)
+              if (val !== '__custom__') {
+                setCustomSpecies('')
+              }
+            }}
+            placeholder="Select species"
+            options={speciesOptions}
           />
-          <datalist id="species-list">
-            {SPECIES_SUGGESTIONS.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
           {errors.species && <p className="form-error">{errors.species}</p>}
         </div>
+
+        {species === '__custom__' && (
+          <div>
+            <label className="form-label">Custom Species *</label>
+            <input
+              value={customSpecies}
+              onChange={(e) => setCustomSpecies(e.target.value)}
+              className="form-input"
+              placeholder="Enter custom species name (e.g. Horse)"
+            />
+          </div>
+        )}
 
         <div>
           <label className="form-label">Breed</label>
@@ -186,12 +258,15 @@ export default function AddAnimal() {
             </div>
             <div>
               <label className="form-label">Mother (optional)</label>
-              <select value={motherId} onChange={(e) => setMotherId(e.target.value)} className="form-input">
-                <option value="">No mother selected</option>
-                {mothers.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name} — {m.species}</option>
-                ))}
-              </select>
+              <StyledSelect
+                value={motherId}
+                onChange={setMotherId}
+                placeholder="No mother selected"
+                options={[
+                  { value: '', label: 'No mother', color: 'bg-gray-50 text-gray-800 border-gray-200', Icon: HiOutlineGlobeAlt },
+                  ...animalSelectOptions(mothers),
+                ]}
+              />
             </div>
           </>
         )}

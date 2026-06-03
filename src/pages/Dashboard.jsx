@@ -1,15 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { fetchAnimals } from '../api/animals'
 import { fetchExpenses } from '../api/expenses'
 import { fetchIncome } from '../api/income'
@@ -30,7 +21,7 @@ export default function Dashboard() {
       setLoading(true)
       setError('')
       const [aRes, eRes, iRes] = await Promise.all([
-        fetchAnimals({ activeOnly: true }),
+        fetchAnimals({ status: 'active' }),
         fetchExpenses(),
         fetchIncome(),
       ])
@@ -65,78 +56,71 @@ export default function Dashboard() {
 
   const months = lastNMonths(6)
   const expenseByMonth = sumByMonth(expenses)
-  const incomeByMonth = sumByMonth(income)
   const chartData = months.map((m) => ({
-    month: getMonthLabel(m),
+    month: getMonthLabel(m).split(' ')[0],
     expenses: expenseByMonth[m] || 0,
-    income: incomeByMonth[m] || 0,
   }))
 
   return (
-    <div>
-      <h2 className="page-title">Dashboard</h2>
+    <div className="space-y-4 sm:space-y-6">
+      <h2 className="page-title mb-0">Dashboard</h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="stat-card">
-          <p className="text-sm text-gray-500">Total Animals</p>
-          <p className="text-3xl font-bold text-green-800 mt-1">{animals.length}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <p className="text-xs sm:text-sm text-gray-500">Animals</p>
+          <p className="text-2xl sm:text-3xl font-bold text-green-800 mt-1">{animals.length}</p>
+          <div className="mt-2 flex flex-wrap gap-1">
             {Object.entries(speciesCount).map(([sp, count]) => (
-              <span key={sp} className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full capitalize">
+              <span key={sp} className="text-[10px] sm:text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full capitalize">
                 {sp}: {count}
               </span>
             ))}
           </div>
         </div>
         <div className="stat-card">
-          <p className="text-sm text-gray-500">Expenses This Month</p>
-          <p className="text-3xl font-bold text-red-600 mt-1">{formatCurrency(monthExpenses)}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Expenses (month)</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-600 mt-1">{formatCurrency(monthExpenses)}</p>
         </div>
         <div className="stat-card">
-          <p className="text-sm text-gray-500">Income This Month</p>
-          <p className="text-3xl font-bold text-green-600 mt-1">{formatCurrency(monthIncome)}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Income (month)</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-600 mt-1">{formatCurrency(monthIncome)}</p>
         </div>
-        <div className="stat-card">
-          <p className="text-sm text-gray-500">Net This Month</p>
-          <p className={`text-3xl font-bold mt-1 ${netMonth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+        <div className="stat-card col-span-2 lg:col-span-1">
+          <p className="text-xs sm:text-sm text-gray-500">Net (month)</p>
+          <p className={`text-xl sm:text-2xl font-bold mt-1 ${netMonth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(netMonth)}
           </p>
         </div>
       </div>
 
-      <div className="card mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Last 6 Months — Expenses vs Income</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v) => formatCurrency(v)} />
-            <Legend />
-            <Bar dataKey="expenses" fill="#dc2626" name="Expenses" />
-            <Bar dataKey="income" fill="#16a34a" name="Income" />
-          </BarChart>
+      <div className="card">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Monthly expenses</h3>
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <XAxis dataKey="month" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+            <YAxis tick={{ fontSize: 10 }} width={48} stroke="#9ca3af" tickFormatter={(v) => `₹${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`} />
+            <Tooltip formatter={(v) => formatCurrency(v)} labelStyle={{ fontSize: 12 }} />
+            <Line type="monotone" dataKey="expenses" stroke="#dc2626" strokeWidth={2} dot={{ r: 3, fill: '#dc2626' }} activeDot={{ r: 5 }} />
+          </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Recent Expenses</h3>
-            <Link to="/expenses" className="text-sm text-green-700 hover:underline">View all</Link>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-semibold">Recent expenses</h3>
+            <Link to="/expenses" className="text-xs text-green-700 font-medium">View all</Link>
           </div>
           {recentExpenses.length === 0 ? (
             <p className="text-gray-500 text-sm">No expenses yet.</p>
           ) : (
             <ul className="divide-y divide-gray-100">
               {recentExpenses.map((e) => (
-                <li key={e.id} className="py-3 flex justify-between items-start gap-2">
-                  <div>
-                    <p className="font-medium text-gray-900">{formatCurrency(e.amount)}</p>
-                    <p className="text-xs text-gray-500">
-                      {formatDate(e.date)} · {categoryLabel(e.category)} · {getScopeLabel(e, animalsMap)}
-                    </p>
-                  </div>
+                <li key={e.id} className="py-2.5 first:pt-0">
+                  <p className="font-medium text-gray-900 text-sm">{formatCurrency(e.amount)}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formatDate(e.date)} · {categoryLabel(e.category)} · {getScopeLabel(e, animalsMap)}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -144,22 +128,20 @@ export default function Dashboard() {
         </div>
 
         <div className="card">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Recent Income</h3>
-            <Link to="/income" className="text-sm text-green-700 hover:underline">View all</Link>
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-semibold">Recent income</h3>
+            <Link to="/income" className="text-xs text-green-700 font-medium">View all</Link>
           </div>
           {recentIncome.length === 0 ? (
             <p className="text-gray-500 text-sm">No income yet.</p>
           ) : (
             <ul className="divide-y divide-gray-100">
               {recentIncome.map((i) => (
-                <li key={i.id} className="py-3 flex justify-between items-start gap-2">
-                  <div>
-                    <p className="font-medium text-green-700">{formatCurrency(i.amount)}</p>
-                    <p className="text-xs text-gray-500">
-                      {formatDate(i.date)} · {incomeTypeLabel(i.type)} · {getScopeLabel(i, animalsMap)}
-                    </p>
-                  </div>
+                <li key={i.id} className="py-2.5 first:pt-0">
+                  <p className="font-medium text-green-700 text-sm">{formatCurrency(i.amount)}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formatDate(i.date)} · {incomeTypeLabel(i.type)} · {getScopeLabel(i, animalsMap)}
+                  </p>
                 </li>
               ))}
             </ul>

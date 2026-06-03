@@ -3,17 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { createExpense } from '../api/expenses'
 import ExpenseSplitPanel from '../components/ExpenseSplitPanel'
 import ScopeSelector from '../components/ScopeSelector'
+import StyledSelect from '../components/StyledSelect'
+import { EXPENSE_CATEGORIES } from '../constants/selectOptions'
 import { buildScopePayload } from '../utils/scope'
 import { todayISO } from '../utils/format'
-
-const CATEGORIES = [
-  { value: 'feed', label: 'Feed' },
-  { value: 'medicine', label: 'Medicine' },
-  { value: 'vet', label: 'Vet' },
-  { value: 'labour', label: 'Labour' },
-  { value: 'equipment', label: 'Equipment' },
-  { value: 'other', label: 'Other' },
-]
 
 export default function AddExpense() {
   const navigate = useNavigate()
@@ -103,11 +96,7 @@ export default function AddExpense() {
 
         <div>
           <label className="form-label">Category *</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} className="form-input">
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
+          <StyledSelect value={category} onChange={setCategory} options={EXPENSE_CATEGORIES} />
         </div>
 
         <div>

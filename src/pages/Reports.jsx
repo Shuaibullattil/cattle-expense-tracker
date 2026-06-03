@@ -1,32 +1,13 @@
 import { useEffect, useState } from 'react'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
+import * as XLSX from 'xlsx'
+import { HiOutlineArrowDownTray } from 'react-icons/hi2'
 import { fetchAnimals } from '../api/animals'
 import { fetchExpenseAllocations, fetchExpenses } from '../api/expenses'
 import { fetchIncome } from '../api/income'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { formatCurrency, categoryLabel, capitalizeSpecies } from '../utils/format'
-import {
-  lastNMonths,
-  getMonthLabel,
-  sumByMonth,
-  groupByCategory,
-  groupExpensesBySpecies,
-  calcAnimalFinancials,
-} from '../utils/aggregations'
-
-const PIE_COLORS = ['#16a34a', '#22c55e', '#4ade80', '#86efac', '#15803d', '#14532d']
+import { formatCurrency, formatDate, categoryLabel } from '../utils/format'
+import { calcAnimalFinancials } from '../utils/aggregations'
+import { buildIncomeAllocations } from '../utils/incomeSplit'
 
 export default function Reports() {
   const [loading, setLoading] = useState(true)
@@ -35,6 +16,10 @@ export default function Reports() {
   const [expenses, setExpenses] = useState([])
   const [allocations, setAllocations] = useState([])
   const [income, setIncome] = useState([])
+  
+  // Date filters
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -59,261 +44,342 @@ export default function Reports() {
   }, [])
 
   if (loading) return <LoadingSpinner />
-  if (error) return <div className="alert-error">{error}</div>
+  if (error && !expenses.length) return <div className="alert-error">{error}</div>
 
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
-  const totalIncome = income.reduce((s, i) => s + Number(i.amount || 0), 0)
-  const netAllTime = totalIncome - totalExpenses
+  // Generate dynamic income allocations
+  const incomeAllocations = buildIncomeAllocations(income, animals)
 
-  const months = lastNMonths(12)
-  const expenseByMonth = sumByMonth(expenses)
-  const incomeByMonth = sumByMonth(income)
-  const monthlyChart = months.map((m) => ({
-    month: getMonthLabel(m),
-    expenses: expenseByMonth[m] || 0,
-    income: incomeByMonth[m] || 0,
-  }))
+  // Filter datasets based on date range
+  let filteredExpenses = expenses
+  let filteredIncome = income
 
-  const categoryGroups = groupByCategory(expenses)
-  const categoryTotal = Object.values(categoryGroups).reduce((s, v) => s + v, 0)
-  const categoryTable = Object.entries(categoryGroups)
-    .map(([cat, amt]) => ({
-      category: categoryLabel(cat),
-      amount: amt,
-      percent: categoryTotal ? ((amt / categoryTotal) * 100).toFixed(1) : '0',
-    }))
-    .sort((a, b) => b.amount - a.amount)
+  if (startDate) {
+    filteredExpenses = filteredExpenses.filter((e) => e.date >= startDate)
+    filteredIncome = filteredIncome.filter((i) => i.date >= startDate)
+  }
+  if (endDate) {
+    filteredExpenses = filteredExpenses.filter((e) => e.date <= endDate)
+    filteredIncome = filteredIncome.filter((i) => i.date <= endDate)
+  }
 
-  const pieData = categoryTable.map((row) => ({
-    name: row.category,
-    value: row.amount,
-  }))
+  // Get distinct species
+  const allSpecies = [...new Set(animals.map((a) => a.species?.toLowerCase()).filter(Boolean))].sort()
 
-  const speciesExpenseGroups = groupExpensesBySpecies(expenses, animals, allocations)
-  const speciesBarData = Object.entries(speciesExpenseGroups).map(([sp, amt]) => ({
-    species: capitalizeSpecies(sp),
-    expenses: amt,
-  }))
+  // 1. Per Species Summary Table Data
+  const speciesTableData = allSpecies.map((sp) => {
+    const speciesAnimals = animals.filter((a) => a.species?.toLowerCase() === sp)
+    let spExpenses = 0
+    let spIncome = 0
+    let spPurchaseCost = 0
+    let spSalePrice = 0
 
-  const animalRows = animals.map((a) => {
-    const fin = calcAnimalFinancials(a, expenses, income, allocations)
+    for (const a of speciesAnimals) {
+      const fin = calcAnimalFinancials(
+        a,
+        filteredExpenses,
+        filteredIncome,
+        allocations,
+        incomeAllocations,
+        startDate,
+        endDate
+      )
+      spExpenses += fin.animalExpenses
+      spIncome += fin.animalIncome
+      spPurchaseCost += fin.purchaseCost
+      spSalePrice += fin.salePrice
+    }
+
+    const net = spIncome + spSalePrice - spExpenses - spPurchaseCost
     return {
-      id: a.id,
-      name: a.name,
-      species: a.species,
-      purchaseCost: fin.purchaseCost,
-      expenses: fin.animalExpenses,
-      income: fin.animalIncome,
-      salePrice: fin.salePrice,
-      net: fin.net,
-      isSold: a.is_sold,
+      Species: sp.charAt(0).toUpperCase() + sp.slice(1),
+      ActiveCount: speciesAnimals.filter((a) => !a.is_sold).length,
+      SoldCount: speciesAnimals.filter((a) => a.is_sold).length,
+      Expenses: spExpenses,
+      Income: spIncome,
+      Net: net,
     }
   })
 
-  const speciesSummary = {}
-  for (const a of animals) {
-    const sp = a.species?.toLowerCase() || 'other'
-    if (!speciesSummary[sp]) {
-      speciesSummary[sp] = { count: 0, expenses: 0, income: 0 }
+  // 2. Per Animal Summary Table Data
+  const animalTableData = animals.map((a) => {
+    const fin = calcAnimalFinancials(
+      a,
+      filteredExpenses,
+      filteredIncome,
+      allocations,
+      incomeAllocations,
+      startDate,
+      endDate
+    )
+    return {
+      id: a.id,
+      Name: a.name,
+      Species: a.species ? a.species.charAt(0).toUpperCase() + a.species.slice(1).toLowerCase() : '—',
+      Status: a.is_sold ? 'Sold' : 'Active',
+      PurchaseCost: fin.purchaseCost,
+      Expenses: fin.animalExpenses,
+      Income: fin.animalIncome,
+      SalePrice: fin.salePrice,
+      Net: fin.net,
     }
-    speciesSummary[sp].count += 1
-    const fin = calcAnimalFinancials(a, expenses, income, allocations)
-    speciesSummary[sp].expenses += fin.animalExpenses
-    speciesSummary[sp].income += fin.animalIncome
+  }).sort((a, b) => b.Net - a.Net)
+
+  // 3. Expense-Amount Table Data
+  const expenseTableData = filteredExpenses.map((e) => {
+    let scopeLabel = 'Whole Farm'
+    if (e.animal_id) {
+      const animal = animals.find((a) => a.id === e.animal_id)
+      scopeLabel = animal ? `Animal: ${animal.name}` : 'Specific Animal'
+    } else if (e.species) {
+      scopeLabel = `Species: ${e.species.charAt(0).toUpperCase() + e.species.slice(1).toLowerCase()}`
+    }
+    return {
+      id: e.id,
+      Date: e.date,
+      Category: categoryLabel(e.category),
+      Scope: scopeLabel,
+      Amount: Number(e.amount),
+      Notes: e.notes || '—',
+    }
+  })
+
+  // Helper function to export to Excel
+  const exportTableToExcel = (data, filename, sheetName) => {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(data)
+    XLSX.utils.book_append_sheet(wb, ws, sheetName)
+    const dateSuffix = startDate || endDate
+      ? `-${startDate || 'all'}-to-${endDate || 'present'}`
+      : `-${new Date().toISOString().slice(0, 10)}`
+    XLSX.writeFile(wb, `${filename}${dateSuffix}.xlsx`)
   }
 
-  for (const i of income) {
-    if (i.species && !i.animal_id) {
-      const sp = i.species.toLowerCase()
-      if (!speciesSummary[sp]) speciesSummary[sp] = { count: 0, expenses: 0, income: 0 }
-      speciesSummary[sp].income += Number(i.amount || 0)
-    }
-  }
-
-  const speciesTable = Object.entries(speciesSummary)
-    .map(([sp, data]) => ({
-      species: capitalizeSpecies(sp),
-      ...data,
-      net: data.income - data.expenses,
+  const exportSpeciesExcel = () => {
+    const data = speciesTableData.map((row) => ({
+      Species: row.Species,
+      'Active Animals': row.ActiveCount,
+      'Sold Animals': row.SoldCount,
+      'Total Expenses (₹)': row.Expenses,
+      'Total Income (₹)': row.Income,
+      'Net P/L (₹)': row.Net,
     }))
-    .sort((a, b) => b.count - a.count)
+    exportTableToExcel(data, 'species-financial-summary', 'Species Summary')
+  }
+
+  const exportAnimalExcel = () => {
+    const data = animalTableData.map((row) => ({
+      Name: row.Name,
+      Species: row.Species,
+      Status: row.Status,
+      'Purchase Cost (₹)': row.PurchaseCost,
+      'Expenses (₹)': row.Expenses,
+      'Income (₹)': row.Income,
+      'Sale Price (₹)': row.SalePrice,
+      'Net P/L (₹)': row.Net,
+    }))
+    exportTableToExcel(data, 'animal-financial-summary', 'Animal Summary')
+  }
+
+  const exportExpenseExcel = () => {
+    const data = expenseTableData.map((row) => ({
+      Date: formatDate(row.Date),
+      Category: row.Category,
+      Scope: row.Scope,
+      'Amount (₹)': row.Amount,
+      Notes: row.Notes,
+    }))
+    exportTableToExcel(data, 'expense-statement', 'Expenses')
+  }
 
   return (
-    <div>
-      <h2 className="page-title">Reports</h2>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="stat-card">
-          <p className="text-sm text-gray-500">All-time Expenses</p>
-          <p className="text-2xl font-bold text-red-600 mt-1">{formatCurrency(totalExpenses)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="text-sm text-gray-500">All-time Income</p>
-          <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(totalIncome)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="text-sm text-gray-500">All-time Net</p>
-          <p className={`text-2xl font-bold mt-1 ${netAllTime >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(netAllTime)}
-          </p>
-        </div>
-        <div className="stat-card">
-          <p className="text-sm text-gray-500">Total Animals Ever</p>
-          <p className="text-2xl font-bold text-green-800 mt-1">{animals.length}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-4">Monthly Expenses vs Income (12 months)</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={monthlyChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={60} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => formatCurrency(v)} />
-              <Legend />
-              <Bar dataKey="expenses" fill="#dc2626" name="Expenses" />
-              <Bar dataKey="income" fill="#16a34a" name="Income" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-4">Expenses by Category</h3>
-          {pieData.length === 0 ? (
-            <p className="text-gray-500 text-sm">No expense data.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {pieData.map((_, idx) => (
-                    <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => formatCurrency(v)} />
-              </PieChart>
-            </ResponsiveContainer>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className="page-title mb-0">Financial Reports</h2>
+        
+        {/* Global Date Filter */}
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm self-start sm:self-center">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Filter:</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="text-xs border-0 bg-transparent p-0 focus:ring-0 w-28 text-gray-700"
+            placeholder="Start date"
+          />
+          <span className="text-gray-400 text-xs">to</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="text-xs border-0 bg-transparent p-0 focus:ring-0 w-28 text-gray-700"
+            placeholder="End date"
+          />
+          {(startDate || endDate) && (
+            <button
+              onClick={() => {
+                setStartDate('')
+                setEndDate('')
+              }}
+              className="text-xs font-medium text-red-600 hover:text-red-700 pl-1 border-l border-gray-200"
+            >
+              Clear
+            </button>
           )}
         </div>
       </div>
 
-      <div className="card mb-8">
-        <h3 className="text-lg font-semibold mb-4">Expenses by Species</h3>
-        {speciesBarData.length === 0 ? (
-          <p className="text-gray-500 text-sm">No expense data.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={speciesBarData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="species" width={100} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v) => formatCurrency(v)} />
-              <Bar dataKey="expenses" fill="#16a34a" name="Expenses" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+      {error && <div className="alert-error">{error}</div>}
+
+      {/* 1. Per Species Summary Table */}
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Per-Species Summary</h3>
+            <p className="text-xs text-gray-500">Aggregated financial health for each animal species.</p>
+          </div>
+          <button onClick={exportSpeciesExcel} className="btn-secondary min-h-0 py-1.5 px-3 rounded-lg text-xs gap-1.5">
+            <HiOutlineArrowDownTray size={14} aria-hidden />
+            Download
+          </button>
+        </div>
+
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Species</th>
+                <th>Active</th>
+                <th>Sold</th>
+                <th>Expenses</th>
+                <th>Income</th>
+                <th>Net P/L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {speciesTableData.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-6 text-gray-500">No species data available.</td>
+                </tr>
+              ) : (
+                speciesTableData.map((row) => (
+                  <tr key={row.Species}>
+                    <td className="font-medium text-gray-900">{row.Species}</td>
+                    <td>{row.ActiveCount}</td>
+                    <td>{row.SoldCount}</td>
+                    <td className="text-red-600 font-medium">{formatCurrency(row.Expenses)}</td>
+                    <td className="text-green-600 font-medium">{formatCurrency(row.Income)}</td>
+                    <td className={`font-semibold ${row.Net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      {formatCurrency(row.Net)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className="space-y-8">
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Expense Summary by Category</h3>
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Total Amount</th>
-                  <th>% of Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categoryTable.length === 0 ? (
-                  <tr><td colSpan={3} className="text-center py-6 text-gray-500">No data</td></tr>
-                ) : (
-                  categoryTable.map((row) => (
-                    <tr key={row.category}>
-                      <td>{row.category}</td>
-                      <td>{formatCurrency(row.amount)}</td>
-                      <td>{row.percent}%</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+      {/* 2. Per Animal Summary Table */}
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Per-Animal Summary</h3>
+            <p className="text-xs text-gray-500">Breakdown of purchase costs, operating expenses, revenues, and final profit margin per head.</p>
           </div>
+          <button onClick={exportAnimalExcel} className="btn-secondary min-h-0 py-1.5 px-3 rounded-lg text-xs gap-1.5">
+            <HiOutlineArrowDownTray size={14} aria-hidden />
+            Download
+          </button>
         </div>
 
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Per-Animal Profit / Loss</h3>
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Species</th>
+                <th>Status</th>
+                <th>Purchase Cost</th>
+                <th>Expenses</th>
+                <th>Income</th>
+                <th>Sale Price</th>
+                <th>Net P/L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {animalTableData.length === 0 ? (
                 <tr>
-                  <th>Name</th>
-                  <th>Species</th>
-                  <th>Purchase Cost</th>
-                  <th>Expenses</th>
-                  <th>Income</th>
-                  <th>Sale Price</th>
-                  <th>Net</th>
+                  <td colSpan={8} className="text-center py-6 text-gray-500">No animal data available.</td>
                 </tr>
-              </thead>
-              <tbody>
-                {animalRows.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-6 text-gray-500">No animals</td></tr>
-                ) : (
-                  animalRows.map((row) => (
-                    <tr key={row.id}>
-                      <td className="font-medium">{row.name}{row.isSold ? ' (sold)' : ''}</td>
-                      <td className="capitalize">{row.species}</td>
-                      <td>{formatCurrency(row.purchaseCost)}</td>
-                      <td>{formatCurrency(row.expenses)}</td>
-                      <td>{formatCurrency(row.income)}</td>
-                      <td>{row.isSold ? formatCurrency(row.salePrice) : '—'}</td>
-                      <td className={row.net >= 0 ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
-                        {formatCurrency(row.net)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+              ) : (
+                animalTableData.map((row) => (
+                  <tr key={row.id}>
+                    <td className="font-medium text-gray-900">{row.Name}</td>
+                    <td>{row.Species}</td>
+                    <td>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                        row.Status === 'Active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {row.Status}
+                      </span>
+                    </td>
+                    <td>{formatCurrency(row.PurchaseCost)}</td>
+                    <td className="text-red-600">{formatCurrency(row.Expenses)}</td>
+                    <td className="text-green-600">{formatCurrency(row.Income)}</td>
+                    <td>{row.Status === 'Sold' ? formatCurrency(row.SalePrice) : '—'}</td>
+                    <td className={`font-semibold ${row.Net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      {formatCurrency(row.Net)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 3. Expense-Amount Table */}
+      <div className="card space-y-4">
+        <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Expense Statement</h3>
+            <p className="text-xs text-gray-500">Comprehensive list of all expenses incurred during the selected period.</p>
           </div>
+          <button onClick={exportExpenseExcel} className="btn-secondary min-h-0 py-1.5 px-3 rounded-lg text-xs gap-1.5">
+            <HiOutlineArrowDownTray size={14} aria-hidden />
+            Download
+          </button>
         </div>
 
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Per-Species Summary</h3>
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Scope</th>
+                <th>Amount</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenseTableData.length === 0 ? (
                 <tr>
-                  <th>Species</th>
-                  <th>Count</th>
-                  <th>Total Expenses</th>
-                  <th>Total Income</th>
-                  <th>Net</th>
+                  <td colSpan={5} className="text-center py-6 text-gray-500">No expenses recorded for this period.</td>
                 </tr>
-              </thead>
-              <tbody>
-                {speciesTable.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-6 text-gray-500">No data</td></tr>
-                ) : (
-                  speciesTable.map((row) => (
-                    <tr key={row.species}>
-                      <td>{row.species}</td>
-                      <td>{row.count}</td>
-                      <td>{formatCurrency(row.expenses)}</td>
-                      <td>{formatCurrency(row.income)}</td>
-                      <td className={row.net >= 0 ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
-                        {formatCurrency(row.net)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+              ) : (
+                expenseTableData.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatDate(row.Date)}</td>
+                    <td className="font-medium text-gray-900">{row.Category}</td>
+                    <td>{row.Scope}</td>
+                    <td className="text-red-600 font-medium">{formatCurrency(row.Amount)}</td>
+                    <td className="text-gray-500 max-w-xs truncate">{row.Notes}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

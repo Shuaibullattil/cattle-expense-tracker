@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context'
+import { APP_ICON } from '../constants/selectOptions'
 
 export default function Signup() {
   const { session, signUp, loading } = useAuth()
@@ -41,12 +42,14 @@ export default function Signup() {
     setTimeout(() => navigate('/login'), 2000)
   }
 
+  const Logo = APP_ICON
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100 p-4">
       <div className="card w-full max-w-md">
         <div className="text-center mb-8">
-          <span className="text-4xl" aria-hidden="true">🌾</span>
-          <h1 className="mt-2 text-2xl font-bold text-green-800">Farm Tracker</h1>
+          <Logo className="text-5xl text-green-700 mx-auto" aria-hidden />
+          <h1 className="mt-3 text-2xl font-bold text-green-800">Farm Tracker</h1>
           <p className="text-gray-500 text-sm mt-1">Create your account</p>
         </div>
 

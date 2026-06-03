@@ -1,9 +1,11 @@
 import { supabase } from '../supabaseClient'
 
-export async function fetchAnimals({ activeOnly = false, species = null } = {}) {
+export async function fetchAnimals({ activeOnly = false, soldOnly = false, status, species = null } = {}) {
   try {
     let query = supabase.from('animals').select('*').order('name')
-    if (activeOnly) query = query.eq('is_sold', false)
+    const animalStatus = status ?? (activeOnly ? 'active' : soldOnly ? 'sold' : 'all')
+    if (animalStatus === 'active') query = query.eq('is_sold', false)
+    if (animalStatus === 'sold') query = query.eq('is_sold', true)
     if (species) query = query.ilike('species', species)
     const { data, error } = await query
     if (error) throw error

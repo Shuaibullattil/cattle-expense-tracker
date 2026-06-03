@@ -2,14 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createIncome } from '../api/income'
 import ScopeSelector from '../components/ScopeSelector'
+import StyledSelect from '../components/StyledSelect'
+import { INCOME_TYPES } from '../constants/selectOptions'
 import { buildScopePayload } from '../utils/scope'
 import { todayISO } from '../utils/format'
-
-const INCOME_TYPES = [
-  { value: 'milk_sale', label: 'Milk Sale' },
-  { value: 'manure', label: 'Manure' },
-  { value: 'other', label: 'Other' },
-]
 
 export default function AddIncome() {
   const navigate = useNavigate()
@@ -90,11 +86,7 @@ export default function AddIncome() {
 
         <div>
           <label className="form-label">Type *</label>
-          <select value={type} onChange={(e) => setType(e.target.value)} className="form-input">
-            {INCOME_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
+          <StyledSelect value={type} onChange={setType} options={INCOME_TYPES} />
         </div>
 
         <div>
