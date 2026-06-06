@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { HiOutlineBanknotes, HiOutlineChartPie, HiOutlinePlus } from 'react-icons/hi2'
+import { GiMilkCarton } from 'react-icons/gi'
 import { fetchAnimals } from '../api/animals'
 import { fetchExpenses } from '../api/expenses'
 import { fetchIncome } from '../api/income'
@@ -11,12 +13,15 @@ import { getScopeLabel } from '../utils/scope'
 import { isCurrentMonth, lastNMonths, getMonthLabel, sumByMonth } from '../utils/aggregations'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [animals, setAnimals] = useState([])
   const [expenses, setExpenses] = useState([])
   const [income, setIncome] = useState([])
   const [milkings, setMilkings] = useState([])
+  const [isFabOpen, setIsFabOpen] = useState(false)
+  const [isTabletFab, setIsTabletFab] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -42,6 +47,17 @@ export default function Dashboard() {
     load()
   }, [])
 
+  useEffect(() => {
+    function syncFabSize() {
+      const width = window.innerWidth
+      setIsTabletFab(width >= 768 && width < 1024)
+    }
+
+    syncFabSize()
+    window.addEventListener('resize', syncFabSize)
+    return () => window.removeEventListener('resize', syncFabSize)
+  }, [])
+
   if (loading) return <LoadingSpinner />
   if (error) return <div className="alert-error">{error}</div>
 
@@ -65,6 +81,18 @@ export default function Dashboard() {
     month: getMonthLabel(m).split(' ')[0],
     expenses: expenseByMonth[m] || 0,
   }))
+  const fabRadius = isTabletFab ? 104 : 80
+  const fabDiagonal = isTabletFab ? 74 : 56
+  const fabActions = [
+    { label: 'Expense', to: '/expenses/new', Icon: HiOutlineBanknotes, x: 0, y: -fabRadius, delay: 0 },
+    { label: 'Income', to: '/income/new', Icon: HiOutlineChartPie, x: -fabDiagonal, y: -fabDiagonal, delay: 50 },
+    { label: 'Milking', to: '/milking/new', Icon: GiMilkCarton, x: -fabRadius, y: 0, delay: 100 },
+  ]
+
+  function navigateFromFab(to) {
+    setIsFabOpen(false)
+    navigate(to)
+  }
 
   // build last 7 days milking chart data
   const getLast7Days = () => {
@@ -85,6 +113,7 @@ export default function Dashboard() {
   }
 
   return (
+    <>
     <div className="space-y-4 sm:space-y-6">
       <h2 className="page-title mb-0">Dashboard</h2>
 
@@ -187,5 +216,54 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+    {isFabOpen && (
+      <button
+        type="button"
+        onClick={() => setIsFabOpen(false)}
+        className="fixed inset-0 z-[49] bg-transparent"
+        aria-label="Close quick actions"
+      />
+    )}
+    <div className={`fixed bottom-6 right-6 z-50 ${isTabletFab ? 'h-[72px] w-[72px]' : 'h-14 w-14'}`}>
+      {fabActions.map(({ label, to, Icon, x, y, delay }) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => navigateFromFab(to)}
+          className={`group absolute flex items-center justify-center rounded-full border border-gray-200 bg-white text-green-600 shadow-md transition-all ${
+            isTabletFab ? 'bottom-2 right-2 h-14 w-14' : 'bottom-1.5 right-1.5 h-11 w-11'
+          } ${
+            isFabOpen ? 'pointer-events-auto duration-200 ease-out' : 'pointer-events-none duration-150 ease-in'
+          }`}
+          style={{
+            transform: isFabOpen ? `translateX(${x}px) translateY(${y}px)` : 'translateX(0px) translateY(0px)',
+            opacity: isFabOpen ? 1 : 0,
+            transitionDelay: `${delay}ms`,
+          }}
+          aria-label={label}
+        >
+          <Icon size={isTabletFab ? 22 : 18} aria-hidden />
+          <span className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+            {label}
+          </span>
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => setIsFabOpen((current) => !current)}
+        className={`absolute bottom-0 right-0 flex items-center justify-center rounded-full bg-green-600 text-white shadow-lg transition-colors hover:bg-green-700 ${
+          isTabletFab ? 'h-[72px] w-[72px]' : 'h-14 w-14'
+        }`}
+        aria-label={isFabOpen ? 'Close quick actions' : 'Open quick actions'}
+        aria-expanded={isFabOpen}
+      >
+        <HiOutlinePlus
+          size={isTabletFab ? 32 : 24}
+          aria-hidden
+          className={`transition-transform duration-200 ${isFabOpen ? 'rotate-45' : 'rotate-0'}`}
+        />
+      </button>
+    </div>
+    </>
   )
 }
