@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { fetchAnimals } from '../api/animals'
 import { fetchExpenses } from '../api/expenses'
 import { fetchIncome } from '../api/income'
+import { fetchMilkings } from '../api/milking'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { formatCurrency, formatDate, categoryLabel, incomeTypeLabel } from '../utils/format'
 import { getScopeLabel } from '../utils/scope'
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const [animals, setAnimals] = useState([])
   const [expenses, setExpenses] = useState([])
   const [income, setIncome] = useState([])
+  const [milkings, setMilkings] = useState([])
 
   useEffect(() => {
     async function load() {
@@ -32,6 +34,9 @@ export default function Dashboard() {
         setExpenses(eRes.data)
         setIncome(iRes.data)
       }
+      // fetch milkings for dashboard
+      const mRes = await fetchMilkings()
+      if (!mRes.error) setMilkings(mRes.data)
       setLoading(false)
     }
     load()
@@ -60,6 +65,24 @@ export default function Dashboard() {
     month: getMonthLabel(m).split(' ')[0],
     expenses: expenseByMonth[m] || 0,
   }))
+
+  // build last 7 days milking chart data
+  const getLast7Days = () => {
+    const days = []
+    const now = new Date()
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(now.getDate() - i)
+      const iso = d.toISOString().slice(0, 10)
+      days.push({ iso, label: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`, quantity: 0 })
+    }
+    const map = Object.fromEntries(days.map((d) => [d.iso, d]))
+    for (const m of milkings || []) {
+      const key = (m.date || '').slice(0, 10)
+      if (map[key]) map[key].quantity += Number(m.quantity || 0)
+    }
+    return Object.values(map)
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -146,6 +169,21 @@ export default function Dashboard() {
               ))}
             </ul>
           )}
+        </div>
+        
+        <div className="card">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-semibold">Weekly milking</h3>
+            <Link to="/milking" className="text-xs text-green-700 font-medium">View all</Link>
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <LineChart data={getLast7Days()} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+              <YAxis tick={{ fontSize: 10 }} width={48} stroke="#9ca3af" />
+              <Tooltip formatter={(v) => `${v} L`} labelStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="quantity" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: '#16a34a' }} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

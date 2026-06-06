@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { fetchAnimalById, markAnimalSold, fetchAnimals } from '../api/animals'
 import { fetchExpensesForAnimal } from '../api/expenses'
 import { fetchIncome } from '../api/income'
+import { fetchMilkingsForAnimal } from '../api/milking'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import LoadingSpinner from '../components/LoadingSpinner'
 import {
   formatCurrency,
@@ -21,6 +23,7 @@ export default function AnimalDetail() {
   const [animal, setAnimal] = useState(null)
   const [expenses, setExpenses] = useState([])
   const [income, setIncome] = useState([])
+  const [milkings, setMilkings] = useState([])
   const [incomeAllocations, setIncomeAllocations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -67,6 +70,10 @@ export default function AnimalDetail() {
 
         setIncome(mappedIncome)
       }
+      // fetch milkings for this animal
+      const mRes = await fetchMilkingsForAnimal(id)
+      if (mRes.error) setError(mRes.error)
+      else setMilkings(mRes.data)
       setLoading(false)
     }
     load()
@@ -181,7 +188,7 @@ export default function AnimalDetail() {
       </div>
 
       <div className="flex border-b border-gray-200 mb-6">
-        {['expenses', 'income', 'info'].map((t) => (
+          {['expenses', 'income', 'milking', 'info'].map((t) => (
           <button
             key={t}
             type="button"
@@ -298,6 +305,47 @@ export default function AnimalDetail() {
           </table>
         </div>
       )}
+
+      {tab === 'milking' && (
+        <div>
+          <div className="card mb-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Weekly milking (last 7 days)</h3>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={getLast7DaysChart(milkings)} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                <YAxis tick={{ fontSize: 10 }} width={48} stroke="#9ca3af" />
+                <Tooltip formatter={(v) => `${v} L`} labelStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="quantity" stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: '#16a34a' }} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Quantity (L)</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {milkings.length === 0 ? (
+                  <tr><td colSpan={3} className="text-center py-8 text-gray-500">No milking records for this animal.</td></tr>
+                ) : (
+                  milkings.sort((a,b)=> (b.date||'').localeCompare(a.date||'')).map((m) => (
+                    <tr key={m.id}>
+                      <td>{formatDate(m.date)}</td>
+                      <td className="font-medium text-green-700">{m.quantity}</td>
+                      <td className="max-w-xs truncate">{m.notes || '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -309,4 +357,21 @@ function InfoRow({ label, value }) {
       <p className="font-medium text-gray-900">{value}</p>
     </div>
   )
+}
+
+function getLast7DaysChart(milkings) {
+  const days = []
+  const now = new Date()
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now)
+    d.setDate(now.getDate() - i)
+    const iso = d.toISOString().slice(0, 10)
+    days.push({ iso, label: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`, quantity: 0 })
+  }
+  const map = Object.fromEntries(days.map((d) => [d.iso, d]))
+  for (const m of milkings || []) {
+    const key = (m.date || '').slice(0, 10)
+    if (map[key]) map[key].quantity += Number(m.quantity || 0)
+  }
+  return Object.values(map)
 }

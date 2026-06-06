@@ -4,6 +4,7 @@ import { HiOutlineArrowDownTray } from 'react-icons/hi2'
 import { fetchAnimals } from '../api/animals'
 import { fetchExpenseAllocations, fetchExpenses } from '../api/expenses'
 import { fetchIncome } from '../api/income'
+import { fetchMilkings } from '../api/milking'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { formatCurrency, formatDate, categoryLabel } from '../utils/format'
 import { calcAnimalFinancials } from '../utils/aggregations'
@@ -16,19 +17,23 @@ export default function Reports() {
   const [expenses, setExpenses] = useState([])
   const [allocations, setAllocations] = useState([])
   const [income, setIncome] = useState([])
+  const [milkings, setMilkings] = useState([])
   
   // Date filters
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [reportType, setReportType] = useState('financial')
+  const [animalFilter, setAnimalFilter] = useState('')
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [aRes, eRes, allocRes, iRes] = await Promise.all([
+      const [aRes, eRes, allocRes, iRes, mRes] = await Promise.all([
         fetchAnimals(),
         fetchExpenses(),
         fetchExpenseAllocations(),
         fetchIncome(),
+        fetchMilkings(),
       ])
       if (aRes.error || eRes.error || allocRes.error || iRes.error) {
         setError(aRes.error || eRes.error || allocRes.error || iRes.error)
@@ -37,6 +42,7 @@ export default function Reports() {
         setExpenses(eRes.data)
         setAllocations(allocRes.data)
         setIncome(iRes.data)
+        setMilkings(mRes.data)
       }
       setLoading(false)
     }
@@ -154,6 +160,18 @@ export default function Reports() {
     XLSX.writeFile(wb, `${filename}${dateSuffix}.xlsx`)
   }
 
+  const exportMilkingExcel = () => {
+    const data = milkings
+      .filter((m) => {
+        if (startDate && m.date < startDate) return false
+        if (endDate && m.date > endDate) return false
+        if (animalFilter && m.animal_id !== animalFilter) return false
+        return true
+      })
+      .map((m) => ({ Date: formatDate(m.date), Animal: (animals.find((a) => a.id === m.animal_id) || {}).name || '—', Quantity: Number(m.quantity || 0), Notes: m.notes || '—' }))
+    exportTableToExcel(data, 'milking-report', 'Milking')
+  }
+
   const exportSpeciesExcel = () => {
     const data = speciesTableData.map((row) => ({
       Species: row.Species,
@@ -194,7 +212,15 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h2 className="page-title mb-0">Financial Reports</h2>
+        <h2 className="page-title mb-0">{reportType === 'financial' ? 'Financial Reports' : 'Milking Report'}</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setReportType('financial')} className={`px-3 py-1 rounded-full text-xs font-medium ${reportType === 'financial' ? 'bg-green-700 text-white' : 'bg-white text-gray-700 border'}`}>
+            Financial
+          </button>
+          <button onClick={() => setReportType('milking')} className={`px-3 py-1 rounded-full text-xs font-medium ${reportType === 'milking' ? 'bg-green-700 text-white' : 'bg-white text-gray-700 border'}`}>
+            Milking
+          </button>
+        </div>
         
         {/* Global Date Filter */}
         <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-gray-100 shadow-sm self-start sm:self-center">
@@ -229,8 +255,9 @@ export default function Reports() {
       </div>
 
       {error && <div className="alert-error">{error}</div>}
-
-      {/* 1. Per Species Summary Table */}
+      {reportType === 'financial' && (
+        <>
+          {/* 1. Per Species Summary Table */}
       <div className="card space-y-4">
         <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
           <div>
@@ -278,6 +305,65 @@ export default function Reports() {
           </table>
         </div>
       </div>
+
+        {/* Milking Report Section */}
+        </>
+      )}
+
+      {reportType === 'milking' && (
+        <div className="card space-y-4">
+          <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Milking Records</h3>
+              <p className="text-xs text-gray-500">Export and inspect milking records for selected period.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <select value={animalFilter} onChange={(e) => setAnimalFilter(e.target.value)} className="text-xs border-0 bg-transparent p-1">
+                <option value="">All animals</option>
+                {animals.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <button onClick={exportMilkingExcel} className="btn-secondary min-h-0 py-1.5 px-3 rounded-lg text-xs gap-1.5">
+                <HiOutlineArrowDownTray size={14} aria-hidden />
+                Download
+              </button>
+            </div>
+          </div>
+
+          <div className="table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Animal</th>
+                  <th>Quantity (L)</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {milkings.length === 0 ? (
+                  <tr><td colSpan={4} className="text-center py-8 text-gray-500">No milking records available.</td></tr>
+                ) : (
+                  milkings
+                    .filter((m) => {
+                      if (startDate && m.date < startDate) return false
+                      if (endDate && m.date > endDate) return false
+                      if (animalFilter && m.animal_id !== animalFilter) return false
+                      return true
+                    })
+                    .map((m) => (
+                      <tr key={m.id}>
+                        <td>{formatDate(m.date)}</td>
+                        <td>{(animals.find((a) => a.id === m.animal_id) || {}).name || '—'}</td>
+                        <td className="font-medium text-green-700">{m.quantity}</td>
+                        <td className="max-w-xs truncate">{m.notes || '—'}</td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* 2. Per Animal Summary Table */}
       <div className="card space-y-4">
