@@ -19,6 +19,7 @@ import { TbTractor } from 'react-icons/tb'
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: HiOutlineSquares2X2 },
   { to: '/animals', label: 'Animals', Icon: GiCow },
+  { to: '/milking', label: 'Milking', Icon: GiMilkCarton },
   { to: '/expenses', label: 'Expenses', Icon: HiOutlineBanknotes },
   { to: '/income', label: 'Income', Icon: HiOutlineChartPie },
   { to: '/reports', label: 'Reports', Icon: HiOutlineDocumentText },

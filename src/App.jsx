@@ -12,6 +12,8 @@ import Expenses from './pages/Expenses'
 import AddExpense from './pages/AddExpense'
 import Income from './pages/Income'
 import AddIncome from './pages/AddIncome'
+import Milking from './pages/Milking'
+import AddMilking from './pages/AddMilking'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
 
@@ -39,6 +41,8 @@ export default function App() {
             <Route path="/expenses/new" element={<AddExpense />} />
             <Route path="/income" element={<Income />} />
             <Route path="/income/new" element={<AddIncome />} />
+            <Route path="/milking" element={<Milking />} />
+            <Route path="/milking/new" element={<AddMilking />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
