@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient'
 import { fetchAnimals } from './animals'
 import { splitAmount } from '../utils/expenseSplit'
+import { getCurrentUserId } from './auth'
 
 async function getEligibleAnimalsForExpense(expense) {
   const { data, error } = await fetchAnimals({ activeOnly: true, species: expense.species || null })
@@ -11,6 +12,7 @@ async function getEligibleAnimalsForExpense(expense) {
 }
 
 async function createExpenseAllocations(expense, excludedAnimalIds = []) {
+  const userId = await getCurrentUserId()
   const eligible = await getEligibleAnimalsForExpense(expense)
   const excluded = new Set(excludedAnimalIds)
   const included = eligible.filter((a) => !excluded.has(a.id))
@@ -24,6 +26,7 @@ async function createExpenseAllocations(expense, excludedAnimalIds = []) {
     expense_id: expense.id,
     animal_id: animal.id,
     amount: shares[i],
+    user_id: userId,
   }))
 
   const { error } = await supabase.from('expense_allocations').insert(rows)
@@ -33,9 +36,11 @@ async function createExpenseAllocations(expense, excludedAnimalIds = []) {
 
 export async function fetchExpenseAllocations() {
   try {
+    const userId = await getCurrentUserId()
     const { data, error } = await supabase
       .from('expense_allocations')
       .select('id, expense_id, animal_id, amount')
+      .eq('user_id', userId)
     if (error) throw error
     return { data: data || [], error: null }
   } catch (err) {
@@ -45,9 +50,11 @@ export async function fetchExpenseAllocations() {
 
 export async function fetchExpenses() {
   try {
+    const userId = await getCurrentUserId()
     const { data, error } = await supabase
       .from('expenses')
       .select('*, expense_allocations(animal_id, amount)')
+      .eq('user_id', userId)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
     if (error) throw error
@@ -59,16 +66,19 @@ export async function fetchExpenses() {
 
 export async function fetchExpensesForAnimal(animalId) {
   try {
+    const userId = await getCurrentUserId()
     const [directRes, allocRes] = await Promise.all([
       supabase
         .from('expenses')
         .select('*')
         .eq('animal_id', animalId)
+        .eq('user_id', userId)
         .order('date', { ascending: false }),
       supabase
         .from('expense_allocations')
         .select('id, amount, expense:expense_id(*)')
-        .eq('animal_id', animalId),
+        .eq('animal_id', animalId)
+        .eq('user_id', userId),
     ])
 
     if (directRes.error) throw directRes.error
@@ -109,11 +119,12 @@ export async function fetchExpensesForAnimal(animalId) {
 
 export async function createExpense(expense, { excludedAnimalIds = [] } = {}) {
   try {
+    const userId = await getCurrentUserId()
     const needsSplit = !expense.animal_id && (expense.is_common || expense.species)
 
     const { data, error } = await supabase
       .from('expenses')
-      .insert(expense)
+      .insert({ ...expense, user_id: userId })
       .select()
       .single()
     if (error) throw error
@@ -135,10 +146,13 @@ export async function createExpense(expense, { excludedAnimalIds = [] } = {}) {
 
 export async function updateExpense(id, updates) {
   try {
+    const userId = await getCurrentUserId()
+    const { user_id, ...safeUpdates } = updates
     const { data, error } = await supabase
       .from('expenses')
-      .update(updates)
+      .update(safeUpdates)
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single()
     if (error) throw error
@@ -150,7 +164,8 @@ export async function updateExpense(id, updates) {
 
 export async function deleteExpense(id) {
   try {
-    const { error } = await supabase.from('expenses').delete().eq('id', id)
+    const userId = await getCurrentUserId()
+    const { error } = await supabase.from('expenses').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
     return { error: null }
   } catch (err) {

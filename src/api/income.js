@@ -1,10 +1,13 @@
 import { supabase } from '../supabaseClient'
+import { getCurrentUserId } from './auth'
 
 export async function fetchIncome() {
   try {
+    const userId = await getCurrentUserId()
     const { data, error } = await supabase
       .from('income')
       .select('*')
+      .eq('user_id', userId)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
     if (error) throw error
@@ -16,10 +19,12 @@ export async function fetchIncome() {
 
 export async function fetchIncomeForAnimal(animalId) {
   try {
+    const userId = await getCurrentUserId()
     const { data, error } = await supabase
       .from('income')
       .select('*')
       .eq('animal_id', animalId)
+      .eq('user_id', userId)
       .order('date', { ascending: false })
     if (error) throw error
     return { data: data || [], error: null }
@@ -30,9 +35,10 @@ export async function fetchIncomeForAnimal(animalId) {
 
 export async function createIncome(entry) {
   try {
+    const userId = await getCurrentUserId()
     const { data, error } = await supabase
       .from('income')
-      .insert(entry)
+      .insert({ ...entry, user_id: userId })
       .select()
       .single()
     if (error) throw error
@@ -44,10 +50,13 @@ export async function createIncome(entry) {
 
 export async function updateIncome(id, updates) {
   try {
+    const userId = await getCurrentUserId()
+    const { user_id, ...safeUpdates } = updates
     const { data, error } = await supabase
       .from('income')
-      .update(updates)
+      .update(safeUpdates)
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single()
     if (error) throw error
@@ -59,7 +68,8 @@ export async function updateIncome(id, updates) {
 
 export async function deleteIncome(id) {
   try {
-    const { error } = await supabase.from('income').delete().eq('id', id)
+    const userId = await getCurrentUserId()
+    const { error } = await supabase.from('income').delete().eq('id', id).eq('user_id', userId)
     if (error) throw error
     return { error: null }
   } catch (err) {
