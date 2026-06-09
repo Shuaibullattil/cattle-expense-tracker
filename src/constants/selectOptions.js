@@ -49,11 +49,21 @@ export const SCOPE_OPTIONS = [
   { value: 'common', label: 'Whole Farm', color: 'bg-green-50 text-green-900 border-green-200', Icon: HiOutlineHome },
 ]
 
+export const EXPENSE_SCOPE_OPTIONS = [
+  ...SCOPE_OPTIONS,
+  { value: 'unassigned', label: 'Not Added to Cattle', color: 'bg-slate-50 text-slate-900 border-slate-200', Icon: HiOutlineArchiveBox },
+]
+
 export const FILTER_SCOPE_OPTIONS = [
   { value: '', label: 'All scopes', color: 'bg-gray-50 text-gray-800 border-gray-200', Icon: HiOutlineGlobeAlt },
   { value: 'animal', label: 'Individual Animal', color: 'bg-emerald-50 text-emerald-900 border-emerald-200', Icon: GiCow },
   { value: 'species', label: 'Species', color: 'bg-teal-50 text-teal-900 border-teal-200', Icon: GiBuffaloHead },
   { value: 'common', label: 'Whole Farm', color: 'bg-green-50 text-green-900 border-green-200', Icon: HiOutlineHome },
+]
+
+export const EXPENSE_FILTER_SCOPE_OPTIONS = [
+  ...FILTER_SCOPE_OPTIONS,
+  { value: 'unassigned', label: 'Not Added to Cattle', color: 'bg-slate-50 text-slate-900 border-slate-200', Icon: HiOutlineArchiveBox },
 ]
 
 export const ANIMAL_STATUS_OPTIONS = [

@@ -10,6 +10,7 @@ export default function ScopeSelector({
   setAnimalId,
   species,
   setSpecies,
+  scopeOptions = SCOPE_OPTIONS,
   errors = {},
 }) {
   const [animals, setAnimals] = useState([])
@@ -49,7 +50,7 @@ export default function ScopeSelector({
     <div className="space-y-4">
       <label className="form-label">Scope *</label>
       <div className="grid grid-cols-1 gap-2">
-        {SCOPE_OPTIONS.map((opt) => {
+        {scopeOptions.map((opt) => {
           const Icon = opt.Icon
           const selected = scopeType === opt.value
           return (

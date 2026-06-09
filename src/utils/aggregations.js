@@ -112,6 +112,7 @@ export function calcAnimalFinancials(
   const allocatedIncome = incomeAllocations
     .filter((a) => {
       if (a.animal_id !== animal.id) return false
+      if (!a.isSplit) return false
 
       // If we have date filters, verify if the allocation date is within range
       if (startDate || endDate) {

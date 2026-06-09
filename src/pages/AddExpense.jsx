@@ -4,7 +4,7 @@ import { createExpense } from '../api/expenses'
 import ExpenseSplitPanel from '../components/ExpenseSplitPanel'
 import ScopeSelector from '../components/ScopeSelector'
 import StyledSelect from '../components/StyledSelect'
-import { EXPENSE_CATEGORIES } from '../constants/selectOptions'
+import { EXPENSE_CATEGORIES, EXPENSE_SCOPE_OPTIONS } from '../constants/selectOptions'
 import { buildScopePayload } from '../utils/scope'
 import { todayISO } from '../utils/format'
 
@@ -83,6 +83,7 @@ export default function AddExpense() {
           setAnimalId={setAnimalId}
           species={species}
           setSpecies={setSpecies}
+          scopeOptions={EXPENSE_SCOPE_OPTIONS}
           errors={errors}
         />
 

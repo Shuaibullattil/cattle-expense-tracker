@@ -5,7 +5,7 @@ import { deleteExpense, fetchExpenses } from '../api/expenses'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StyledSelect from '../components/StyledSelect'
-import { categoryFilterOptions, FILTER_SCOPE_OPTIONS } from '../constants/selectOptions'
+import { categoryFilterOptions, EXPENSE_FILTER_SCOPE_OPTIONS } from '../constants/selectOptions'
 import { formatCurrency, formatDate, categoryLabel, todayISO } from '../utils/format'
 import { getScopeLabel, getScopeType } from '../utils/scope'
 
@@ -90,7 +90,7 @@ export default function Expenses() {
           </div>
           <div className="filter-field">
             <label className="form-label">Scope</label>
-            <StyledSelect value={scopeFilter} onChange={setScopeFilter} options={FILTER_SCOPE_OPTIONS} />
+            <StyledSelect value={scopeFilter} onChange={setScopeFilter} options={EXPENSE_FILTER_SCOPE_OPTIONS} />
           </div>
         </div>
       </div>

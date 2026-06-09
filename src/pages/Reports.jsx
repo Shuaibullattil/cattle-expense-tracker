@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import { formatCurrency, formatDate, categoryLabel } from '../utils/format'
 import { calcAnimalFinancials } from '../utils/aggregations'
 import { buildIncomeAllocations } from '../utils/incomeSplit'
+import { getScopeLabel } from '../utils/scope'
 
 export default function Reports() {
   const [loading, setLoading] = useState(true)
@@ -54,6 +55,7 @@ export default function Reports() {
 
   // Generate dynamic income allocations
   const incomeAllocations = buildIncomeAllocations(income, animals)
+  const animalsMap = Object.fromEntries(animals.map((a) => [a.id, a]))
 
   // Filter datasets based on date range
   let filteredExpenses = expenses
@@ -132,18 +134,11 @@ export default function Reports() {
 
   // 3. Expense-Amount Table Data
   const expenseTableData = filteredExpenses.map((e) => {
-    let scopeLabel = 'Whole Farm'
-    if (e.animal_id) {
-      const animal = animals.find((a) => a.id === e.animal_id)
-      scopeLabel = animal ? `Animal: ${animal.name}` : 'Specific Animal'
-    } else if (e.species) {
-      scopeLabel = `Species: ${e.species.charAt(0).toUpperCase() + e.species.slice(1).toLowerCase()}`
-    }
     return {
       id: e.id,
       Date: e.date,
       Category: categoryLabel(e.category),
-      Scope: scopeLabel,
+      Scope: getScopeLabel(e, animalsMap),
       Amount: Number(e.amount),
       Notes: e.notes || '—',
     }
@@ -365,6 +360,8 @@ export default function Reports() {
         </div>
       )}
 
+      {reportType === 'financial' && (
+        <>
       {/* 2. Per Animal Summary Table */}
       <div className="card space-y-4">
         <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
@@ -468,6 +465,8 @@ export default function Reports() {
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   )
 }
