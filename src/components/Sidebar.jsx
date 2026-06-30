@@ -3,7 +3,7 @@ import { APP_ICON, NAV_ITEMS } from '../constants/selectOptions'
 import { HiOutlineArrowRightOnRectangle, HiOutlineBars3, HiOutlineXMark } from 'react-icons/hi2'
 
 const SIDEBAR_ITEMS = NAV_ITEMS.filter((item) =>
-  ['Dashboard', 'Animals', 'Expenses', 'Income', 'Milking', 'Reports'].includes(item.label)
+  ['Dashboard', 'Animals', 'Events', 'Expenses', 'Income', 'Milking', 'Reports'].includes(item.label)
 )
 
 function NavItem({ to, label, Icon, end, showLabel }) {

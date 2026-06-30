@@ -16,6 +16,7 @@ import Milking from './pages/Milking'
 import AddMilking from './pages/AddMilking'
 import Reports from './pages/Reports'
 import Settings from './pages/Settings'
+import Events from './pages/Events'
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/income/new" element={<AddIncome />} />
             <Route path="/milking" element={<Milking />} />
             <Route path="/milking/new" element={<AddMilking />} />
+            <Route path="/events" element={<Events />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

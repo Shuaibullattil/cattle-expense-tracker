@@ -12,13 +12,26 @@ import {
   HiOutlineChartPie,
   HiOutlineBanknotes,
   HiOutlineDocumentText,
+  HiOutlineCalendarDays,
 } from 'react-icons/hi2'
-import { GiCow, GiBuffaloHead, GiGoat, GiSheep, GiGrain, GiMilkCarton } from 'react-icons/gi'
+import { GiCow, GiBuffaloHead, GiGoat, GiSheep, GiGrain, GiMilkCarton, GiMedicines, GiHorseHead } from 'react-icons/gi'
 import { TbTractor } from 'react-icons/tb'
+import {
+  FaSyringe,
+  FaStethoscope,
+  FaHeart,
+  FaBaby,
+  FaTag,
+  FaWeightHanging,
+  FaTruck,
+  FaPills,
+  FaRegCalendarAlt,
+} from 'react-icons/fa'
 
 export const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', Icon: HiOutlineSquares2X2 },
   { to: '/animals', label: 'Animals', Icon: GiCow },
+  { to: '/events', label: 'Events', Icon: HiOutlineCalendarDays },
   { to: '/milking', label: 'Milking', Icon: GiMilkCarton },
   { to: '/expenses', label: 'Expenses', Icon: HiOutlineBanknotes },
   { to: '/income', label: 'Income', Icon: HiOutlineChartPie },
@@ -123,3 +136,25 @@ export function incomeTypeFilterOptions() {
     ...INCOME_TYPES,
   ]
 }
+
+export const EVENT_TYPE_METADATA = {
+  'Vaccination': { Icon: FaSyringe, color: 'bg-blue-50 text-blue-900 border-blue-200' },
+  'Deworming': { Icon: GiMedicines, color: 'bg-emerald-50 text-emerald-900 border-emerald-200' },
+  'Health Check': { Icon: FaStethoscope, color: 'bg-indigo-50 text-indigo-900 border-indigo-200' },
+  'Mating': { Icon: FaHeart, color: 'bg-rose-50 text-rose-900 border-rose-200' },
+  'Pregnancy Check': { Icon: FaBaby, color: 'bg-purple-50 text-purple-900 border-purple-200' },
+  'Birth': { Icon: GiCow, color: 'bg-amber-50 text-amber-900 border-amber-200' },
+  'Ear Tagging': { Icon: FaTag, color: 'bg-orange-50 text-orange-900 border-orange-200' },
+  'Weight Check': { Icon: FaWeightHanging, color: 'bg-cyan-50 text-cyan-900 border-cyan-200' },
+  'Hoof Trimming': { Icon: GiHorseHead, color: 'bg-lime-50 text-lime-900 border-lime-200' },
+  'Transfer': { Icon: FaTruck, color: 'bg-teal-50 text-teal-900 border-teal-200' },
+  'Medication': { Icon: FaPills, color: 'bg-red-50 text-red-900 border-red-200' },
+  'Other': { Icon: FaRegCalendarAlt, color: 'bg-gray-50 text-gray-900 border-gray-200' },
+}
+
+export const EVENT_TYPE_OPTIONS = Object.keys(EVENT_TYPE_METADATA).map((type) => ({
+  value: type,
+  label: type,
+  Icon: EVENT_TYPE_METADATA[type].Icon,
+  color: EVENT_TYPE_METADATA[type].color,
+}))
