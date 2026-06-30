@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchAnimals } from '../api/animals'
-import { fetchEvents, createEvent } from '../api/events'
+import { fetchEvents, createEvent, deleteEvent } from '../api/events'
+import ConfirmDialog from '../components/ConfirmDialog'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StyledSelect from '../components/StyledSelect'
 import {
@@ -10,7 +11,7 @@ import {
 } from '../constants/selectOptions'
 import { capitalizeSpecies } from '../utils/format'
 import { GiCow } from 'react-icons/gi'
-import { HiOutlineGlobeAlt, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineCalendarDays, HiOutlineXMark } from 'react-icons/hi2'
+import { HiOutlineGlobeAlt, HiOutlinePlus, HiOutlineMagnifyingGlass, HiOutlineCalendarDays, HiOutlineXMark, HiOutlineTrash } from 'react-icons/hi2'
 
 // Colors specifically optimized for the circular backgrounds of the cards
 const EVENT_CARD_COLORS = {
@@ -47,6 +48,7 @@ export default function Events() {
   const [formErrors, setFormErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [modalError, setModalError] = useState('')
+  const [deleteId, setDeleteId] = useState(null)
 
   // Determine local date ISO string
   const { todayStr, yesterdayStr } = useMemo(() => {
@@ -131,7 +133,7 @@ export default function Events() {
     const groups = []
     filteredEvents.forEach((evt) => {
       const dateStr = evt.event_date
-      let groupKey = ''
+      let groupKey
       if (dateStr === todayStr) {
         groupKey = 'Today'
       } else if (dateStr === yesterdayStr) {
@@ -169,6 +171,12 @@ export default function Events() {
     if (!submitting) {
       setModalOpen(false)
     }
+  }
+
+  const reloadEvents = async () => {
+    const eventsRes = await fetchEvents()
+    if (eventsRes.error) setError(eventsRes.error)
+    else setEvents(eventsRes.data || [])
   }
 
   // Validate form
@@ -212,6 +220,17 @@ export default function Events() {
     })
 
     setModalOpen(false)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteId) return
+    const { error: err } = await deleteEvent(deleteId)
+    setDeleteId(null)
+    if (err) {
+      setError(err)
+      return
+    }
+    await reloadEvents()
   }
 
   if (loading) return <LoadingSpinner />
@@ -321,10 +340,20 @@ export default function Events() {
                           key={evt.id}
                           className="card relative flex flex-col justify-between p-6 rounded-2xl bg-white shadow-sm border border-gray-100/90 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
                         >
-                          {/* Date Badge aligned to top-right */}
-                          <span className="absolute top-6 right-6 text-[11px] font-semibold text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full shrink-0">
-                            {formatEventDate(evt.event_date)}
-                          </span>
+                          <div className="absolute top-5 right-5 flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold text-gray-400 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-full shrink-0">
+                              {formatEventDate(evt.event_date)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteId(evt.id)}
+                              className="flex h-7 w-7 items-center justify-center rounded-full text-gray-300 transition-colors hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-200"
+                              aria-label={`Delete ${evt.event_type} event`}
+                              title="Delete event"
+                            >
+                              <HiOutlineTrash size={15} aria-hidden />
+                            </button>
+                          </div>
 
                           <div className="flex flex-col items-start gap-4">
                             {/* Icon inside soft colored circular background */}
@@ -333,7 +362,7 @@ export default function Events() {
                             </div>
 
                             {/* Info */}
-                            <div className="space-y-1 w-full pr-24">
+                            <div className="space-y-1 w-full pr-28">
                               <h4 className="font-bold text-gray-900 text-lg leading-tight">
                                 {evt.event_type}
                               </h4>
@@ -449,6 +478,14 @@ export default function Events() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteId)}
+        title="Delete Event"
+        message="Are you sure you want to delete this event? This cannot be undone."
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   )
 }
@@ -459,21 +496,6 @@ function formatEventDate(dateStr) {
   const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00'))
   if (Number.isNaN(d.getTime())) return dateStr
   const day = d.getDate()
-  const monthNames = [
-    'Jun', // Quick lookup shortcut or full list
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  // Fix lookup indices
   const monthNamesFull = [
     'Jan',
     'Feb',

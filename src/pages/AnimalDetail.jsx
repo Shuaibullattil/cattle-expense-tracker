@@ -4,6 +4,7 @@ import { fetchAnimalById, markAnimalSold, fetchAnimals } from '../api/animals'
 import { fetchExpensesForAnimal } from '../api/expenses'
 import { fetchIncome } from '../api/income'
 import { fetchMilkingsForAnimal } from '../api/milking'
+import { fetchEventsForAnimal } from '../api/events'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import LoadingSpinner from '../components/LoadingSpinner'
 import {
@@ -24,6 +25,7 @@ export default function AnimalDetail() {
   const [expenses, setExpenses] = useState([])
   const [income, setIncome] = useState([])
   const [milkings, setMilkings] = useState([])
+  const [events, setEvents] = useState([])
   const [incomeAllocations, setIncomeAllocations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -74,6 +76,9 @@ export default function AnimalDetail() {
       const mRes = await fetchMilkingsForAnimal(id)
       if (mRes.error) setError(mRes.error)
       else setMilkings(mRes.data)
+      const eventsRes = await fetchEventsForAnimal(id)
+      if (eventsRes.error) setError(eventsRes.error)
+      else setEvents(eventsRes.data || [])
       setLoading(false)
     }
     load()
@@ -188,7 +193,7 @@ export default function AnimalDetail() {
       </div>
 
       <div className="flex border-b border-gray-200 mb-6">
-          {['expenses', 'income', 'milking', 'info'].map((t) => (
+          {['expenses', 'income', 'events', 'milking', 'info'].map((t) => (
           <button
             key={t}
             type="button"
@@ -298,6 +303,33 @@ export default function AnimalDetail() {
                       )}
                       {i.notes || (i.isSplit ? '' : '—')}
                     </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'events' && (
+        <div className="table-container">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Event</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.length === 0 ? (
+                <tr><td colSpan={3} className="text-center py-8 text-gray-500">No events for this animal.</td></tr>
+              ) : (
+                events.map((event) => (
+                  <tr key={event.id}>
+                    <td>{formatDate(event.event_date)}</td>
+                    <td className="font-medium text-gray-900">{event.event_type}</td>
+                    <td className="max-w-xs truncate text-sm text-gray-600">{event.notes || 'â€”'}</td>
                   </tr>
                 ))
               )}
